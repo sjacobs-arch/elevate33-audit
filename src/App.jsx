@@ -84,20 +84,36 @@ const normCols = (data) =>
     return nr;
   });
 
+// Vendor Central Retail Analytics exports have a metadata row as the first row
+// (e.g. "Program=[Retail]") with the real headers in row 1. Detect and re-map.
+const fixVendorHeaders = (data) => {
+  if (!data.length) return data;
+  const firstKey = Object.keys(data[0])[0] || "";
+  if (!/=\[/.test(firstKey)) return data; // normal file
+  // Row 0 values are the real headers; remaining rows are data
+  const headers = Object.values(data[0]).map((v) => String(v).trim()).filter(Boolean);
+  return data.slice(1).map((r) => {
+    const nr = {};
+    const vals = Object.values(r);
+    headers.forEach((h, i) => { nr[h] = vals[i] ?? ""; });
+    return nr;
+  });
+};
+
 const readFile = (file) =>
   new Promise((resolve) => {
     const ext = file.name.split(".").pop().toLowerCase();
     if (ext === "csv") {
       Papa.parse(file, {
         header: true, skipEmptyLines: true,
-        complete: (r) => resolve(normCols(r.data)),
+        complete: (r) => resolve(normCols(fixVendorHeaders(r.data))),
       });
     } else {
       const reader = new FileReader();
       reader.onload = (e) => {
         const wb = XLSX.read(e.target.result, { type: "binary" });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        resolve(normCols(XLSX.utils.sheet_to_json(ws, { defval: "" })));
+        resolve(normCols(fixVendorHeaders(XLSX.utils.sheet_to_json(ws, { defval: "" }))));
       };
       reader.readAsBinaryString(file);
     }
@@ -256,9 +272,9 @@ const processAll = (parsed) => {
   // ── S4 ──
   const bizMap = {};
   for (const r of businessReport) {
-    const asin = String(r["(Child) ASIN"] || "").trim().toUpperCase();
+    const asin = String(r["(Child) ASIN"] || r["ASIN"] || "").trim().toUpperCase();
     if (!asin) continue;
-    bizMap[asin] = (bizMap[asin] || 0) + parseNum(r["Ordered Product Sales"]);
+    bizMap[asin] = (bizMap[asin] || 0) + parseNum(r["Ordered Product Sales"] || r["Shipped Revenue"]);
   }
 
   const adsMap = {};
@@ -484,7 +500,7 @@ const CustomTooltip = ({ active, payload, label }) => {
         <div key={i} style={{ color: p.color, marginBottom: 3, display: "flex", gap: 8 }}>
           <span style={{ color: "#94a3b8" }}>{p.name}:</span>
           <span style={{ fontWeight: 600 }}>
-            {p.name === "ROAS" ? f.x(p.value) : f.$(p.value)}
+            {p.name === "ROAS" ? f.x(p.value) : p.name === "CVR" ? f.cvr(p.value) : f.$(p.value)}
           </span>
         </div>
       ))}
@@ -744,172 +760,6 @@ const InsightCard = ({ sectionKey, payload }) => {
   );
 };
 
-// ─── apollo config ────────────────────────────────────────────────────────────
-// Paste your Apollo API key below (Settings → Integrations → API Keys in Apollo)
-const APOLLO_API_KEY = "9k011gxqVNr15wcTw2RCOA";
-
-// ─── apollo lead submission ───────────────────────────────────────────────────
-const submitToApollo = async ({ firstName, lastName, email, company, title }) => {
-  // Apollo v1 contact create endpoint
-  const res = await fetch("https://api.apollo.io/v1/contacts", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-cache" },
-    body: JSON.stringify({
-      api_key:           APOLLO_API_KEY,
-      first_name:        firstName,
-      last_name:         lastName,
-      email:             email,
-      organization_name: company,
-      title:             title || "",
-      label_names:       ["Amazon Audit Tool"],
-    }),
-  });
-  if (!res.ok) throw new Error("Apollo submission failed: " + res.status);
-  return res.json();
-};
-
-// ─── lead gate modal ─────────────────────────────────────────────────────────
-const LeadGate = ({ onUnlock }) => {
-  const [form, setForm]       = useState({ firstName: "", lastName: "", email: "", company: "", title: "" });
-  const [status, setStatus]   = useState("idle"); // idle | loading | error
-  const [errMsg, setErrMsg]   = useState("");
-
-  const set = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
-  const valid = form.firstName && form.lastName && form.email.includes("@") && form.company;
-
-  const handleSubmit = async () => {
-    if (!valid) return;
-    setStatus("loading");
-    setErrMsg("");
-    try {
-      await submitToApollo(form);
-      onUnlock();
-    } catch (e) {
-      // Still unlock even if Apollo fails — don't block the user
-      console.warn("Apollo error:", e.message);
-      onUnlock();
-    }
-  };
-
-  const inputStyle = {
-    width: "100%", boxSizing: "border-box",
-    padding: "11px 14px", borderRadius: 10, fontSize: 14,
-    border: "1.5px solid #e2e8f0", outline: "none", fontFamily: "inherit",
-    transition: "border-color 0.2s",
-    background: "white", color: "#0f172a",
-  };
-  const labelStyle = {
-    display: "block", fontSize: 11, fontWeight: 700,
-    color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6,
-  };
-
-  return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 999,
-      background: "linear-gradient(150deg,#f0f3ff 0%,#f8f9fb 50%,#fff8f3 100%)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      padding: 20,
-    }}>
-      {/* Decorative blobs */}
-      <div style={{ position: "absolute", top: -100, right: -100, width: 500, height: 500, borderRadius: "50%", background: `radial-gradient(circle,${P.purple2}18 0%,transparent 70%)`, pointerEvents: "none" }} />
-      <div style={{ position: "absolute", bottom: -80, left: -80, width: 400, height: 400, borderRadius: "50%", background: `radial-gradient(circle,${P.orange3}14 0%,transparent 70%)`, pointerEvents: "none" }} />
-
-      <div style={{
-        background: "white", borderRadius: 24, padding: "44px 44px 40px",
-        maxWidth: 480, width: "100%", position: "relative",
-        boxShadow: "0 24px 80px rgba(15,23,42,0.12), 0 4px 16px rgba(79,70,229,0.08)",
-        border: "1px solid rgba(79,70,229,0.1)",
-      }}>
-        {/* Top accent bar */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, borderRadius: "24px 24px 0 0", background: `linear-gradient(90deg,${P.purple2},${P.orange3})` }} />
-
-        {/* Logo */}
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 28 }}>
-          <div style={{ background: `linear-gradient(135deg,${P.purple1},#1e1b4b)`, borderRadius: 12, padding: "8px 20px" }}>
-            <img src={LOGO} alt="ELEVATE33" style={{ height: 26, display: "block" }} />
-          </div>
-        </div>
-
-        <h1 style={{ margin: "0 0 8px", fontSize: 22, fontWeight: 900, color: "#0f172a", textAlign: "center", letterSpacing: "-0.03em" }}>
-          Amazon Ads Audit Tool
-        </h1>
-        <p style={{ margin: "0 0 28px", fontSize: 14, color: "#64748b", textAlign: "center", lineHeight: 1.6 }}>
-          Free, instant account analysis. Enter your info to get started.
-        </p>
-
-        {/* Privacy badge */}
-        <div style={{
-          display: "flex", alignItems: "flex-start", gap: 10,
-          background: "linear-gradient(135deg,rgba(79,70,229,0.05),rgba(249,115,22,0.04))",
-          border: "1px solid rgba(79,70,229,0.12)",
-          borderRadius: 12, padding: "12px 14px", marginBottom: 24,
-        }}>
-          <div style={{ fontSize: 18, lineHeight: 1.3, flexShrink: 0 }}>🔒</div>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: P.purple2, marginBottom: 2 }}>Your data never leaves your browser</div>
-            <div style={{ fontSize: 11, color: "#64748b", lineHeight: 1.5 }}>
-              All report processing happens locally on your device. Your Amazon data is never uploaded to any server — not ours, not anyone's. You can verify this by opening DevTools and watching network traffic.
-            </div>
-          </div>
-        </div>
-
-        {/* Form fields */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 16px", marginBottom: 14 }}>
-          <div>
-            <label style={labelStyle}>First Name *</label>
-            <input style={inputStyle} placeholder="Jane" value={form.firstName} onChange={set("firstName")}
-              onFocus={e => e.target.style.borderColor = P.purple2} onBlur={e => e.target.style.borderColor = "#e2e8f0"} />
-          </div>
-          <div>
-            <label style={labelStyle}>Last Name *</label>
-            <input style={inputStyle} placeholder="Smith" value={form.lastName} onChange={set("lastName")}
-              onFocus={e => e.target.style.borderColor = P.purple2} onBlur={e => e.target.style.borderColor = "#e2e8f0"} />
-          </div>
-        </div>
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Work Email *</label>
-          <input style={inputStyle} type="email" placeholder="jane@brand.com" value={form.email} onChange={set("email")}
-            onFocus={e => e.target.style.borderColor = P.purple2} onBlur={e => e.target.style.borderColor = "#e2e8f0"} />
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 16px", marginBottom: 24 }}>
-          <div>
-            <label style={labelStyle}>Company *</label>
-            <input style={inputStyle} placeholder="Acme Brands" value={form.company} onChange={set("company")}
-              onFocus={e => e.target.style.borderColor = P.purple2} onBlur={e => e.target.style.borderColor = "#e2e8f0"} />
-          </div>
-          <div>
-            <label style={labelStyle}>Title <span style={{ color: "#cbd5e1", fontWeight: 400 }}>(optional)</span></label>
-            <input style={inputStyle} placeholder="Amazon Manager" value={form.title} onChange={set("title")}
-              onFocus={e => e.target.style.borderColor = P.purple2} onBlur={e => e.target.style.borderColor = "#e2e8f0"} />
-          </div>
-        </div>
-
-        {errMsg && <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 12, textAlign: "center" }}>{errMsg}</div>}
-
-        <button
-          onClick={handleSubmit}
-          disabled={!valid || status === "loading"}
-          style={{
-            width: "100%", padding: "14px", borderRadius: 12, border: "none", cursor: valid ? "pointer" : "not-allowed",
-            background: valid ? `linear-gradient(135deg,${P.purple2},${P.orange3})` : "#e2e8f0",
-            color: valid ? "white" : "#94a3b8", fontSize: 15, fontWeight: 800, letterSpacing: "-0.01em",
-            fontFamily: "inherit", transition: "opacity 0.2s, transform 0.1s",
-            boxShadow: valid ? `0 4px 20px ${P.purple2}40` : "none",
-          }}
-          onMouseEnter={e => { if (valid) e.target.style.opacity = "0.9"; }}
-          onMouseLeave={e => { e.target.style.opacity = "1"; }}
-        >
-          {status === "loading" ? "Launching…" : "Launch Audit Tool →"}
-        </button>
-
-        <p style={{ margin: "14px 0 0", fontSize: 11, color: "#94a3b8", textAlign: "center", lineHeight: 1.5 }}>
-          By continuing you agree to receive occasional outreach from ELEVATE33.{" "}
-          <span style={{ color: "#cbd5e1" }}>We don't sell your data.</span>
-        </p>
-      </div>
-    </div>
-  );
-};
 
 // ─── privacy trust banner ────────────────────────────────────────────────────
 const PrivacyBanner = () => {
@@ -1217,7 +1067,6 @@ const ReportPage = ({ results, onNav }) => {
 
 // ─── app ─────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [unlocked,    setUnlocked]    = useState(false);
   const [page,        setPage]        = useState("intro");
   const [parsedData,  setParsedData]  = useState({});
   const [loadingId,   setLoadingId]   = useState(null);
@@ -1247,7 +1096,6 @@ export default function App() {
   return (
     <>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-      {!unlocked && <LeadGate onUnlock={() => setUnlocked(true)} />}
       <div style={{ fontFamily: '"DM Sans", system-ui, sans-serif', minHeight: "100vh", background: "linear-gradient(150deg,#f0f3ff 0%,#f8f9fb 50%,#fff8f3 100%)", color: "#0f172a" }}>
 
         {/* HEADER */}
