@@ -1067,7 +1067,7 @@ const ReportPage = ({ results, onNav }) => {
 
 // ─── app ─────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [page,        setPage]        = useState("intro");
+  const [page,        setPage]        = useState("upload");
   const [parsedData,  setParsedData]  = useState({});
   const [loadingId,   setLoadingId]   = useState(null);
   const [fileNames,   setFileNames]   = useState({});
@@ -1121,12 +1121,11 @@ export default function App() {
         </header>
 
         {/* PROGRESS BAR — hide on intro */}
-        {page !== "intro" && <ProgressBar current={page} onNav={nav} results={results} />}
+        {<ProgressBar current={page} onNav={nav} results={results} />}
 
         <main style={{ maxWidth: 1200, margin: "0 auto" }}>
 
           {/* ── INTRO ── */}
-          {page === "intro" && <IntroPage onStart={() => nav("upload")} />}
 
           {/* ── UPLOAD ── */}
           {page === "upload" && (
