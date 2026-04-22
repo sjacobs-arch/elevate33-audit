@@ -262,9 +262,10 @@ const processAll = (parsed) => {
     chart: Object.entries(s3Map)
       .map(([name, v]) => ({
         name: shorten(name), fullName: name,
-        spend: v.spend, sales: v.sales,
-        roas: v.spend > 0 ? v.sales  / v.spend  : 0,
+        spend: v.spend, sales: v.sales, clicks: v.clicks,
+        roas: v.spend  > 0 ? v.sales  / v.spend  : 0,
         cvr:  v.clicks > 0 ? v.orders / v.clicks : 0,
+        cpc:  v.clicks > 0 ? v.spend  / v.clicks : 0,
       }))
       .sort((a, b) => b.spend - a.spend),
   };
@@ -626,6 +627,8 @@ const buildS3Payload = (s3) => ({
     spend:     p.spend.toFixed(2),
     sales:     p.sales.toFixed(2),
     roas:      p.roas.toFixed(2),
+    cvr:       (p.cvr * 100).toFixed(1) + "%",
+    cpc:       p.cpc.toFixed(2),
   })),
 });
 
@@ -653,17 +656,28 @@ const buildS4Payload = (s4) => {
 
 const SYSTEM_PROMPT = `You are an expert Amazon Advertising strategist working for ELEVATE33, a premium Amazon-focused eCommerce agency. You are analyzing aggregated performance metrics from a Sponsored Products audit.
 
-Your job: deliver sharp, specific, actionable insights in 3-5 sentences. 
+Your job: deliver sharp, specific, actionable insights in 4-6 sentences.
 - Lead with the most important finding
-- Include at least one specific number from the data
-- End with a concrete recommended action
+- Include specific numbers from the data to support your points
+- End with a clear directional recommendation
 - Tone: confident, direct, expert — like a senior strategist in a client meeting
 - Do NOT use bullet points, headers, or markdown formatting
 - Write in flowing prose only`;
 
-const callClaude = async (payload) => {
+const SECTION_PROMPTS = {
+  s1: `Analyze this brand vs. non-brand spend split through a critical lens. The benchmark is no more than 20% of total budget going to branded terms — flag immediately if this account exceeds that threshold. Assess whether the ROAS gap between brand and non-brand is creating a misleading picture of account health. Evaluate match type discipline within the brand segment — brand defense should be concentrated in Exact or Phrase match. If phrase match is heavy, advise reviewing search terms to confirm these are deliberate brand phrase targets, not category terms bleeding in. Any spend in Auto or Broad for brand terms is a negative keyword gap — call it out directly.`,
+
+  s2: `Match type tells us how much control a brand has over their account. The ideal state is heavily weighted toward Exact match (>80% of spend), which allows a brand to control spend against specific keywords and chase sales and organic rank where there is opportunity. Assess the spend breakdown — Exact should typically be #1, Phrase can be incorporated, and Auto and Broad should be limited (<20% of spend combined). Evaluate ROAS and CVR by match type. If Auto, Broad, or Phrase shows higher ROAS than Exact, this often signals the brand is not graduating effective targets into Exact match campaigns. Product or category targets may also be present but should not exceed 20% of spend. We also examine how many search terms are driving sales. A large portion of budget in Auto, Broad, or Phrase will result in a high percentage of spend going to $0-sales search terms. While finding traffic on longtail terms matters, brands should not over-index on $0-sales terms — flag if this exceeds 40% of spend, with the ideal being under 30%. Call out the waste explicitly: what percentage of spend or search terms targeted are not producing sales.`,
+
+  s3: `Placements matter because without bid modifiers, brands miss the opportunity to steer spend toward higher-converting or higher-return placements. Amazon tends to prioritize Rest of Search and Product Pages over Top of Search because auctions are cheaper to win there — but these placements may not deliver the visibility or rank-building a brand needs. Analyze CPC, ROAS, and CVR across placements. Generally, Top of Search should be prioritized to build organic rank — it typically carries the highest ROAS and CVR despite the highest CPC. An upstart brand trying to drive traffic and review volume may reasonably lean into Rest of Search or Product Pages to maximize velocity early. A mature brand should have focused budgets and a clear intent to build organic rank, which requires a concentration on Top of Search — Amazon's algorithm favors ASINs with high CVR on target terms, and Top of Search amplifies that signal. Flag any over-saturation in a single placement and evaluate whether the spend distribution reflects a deliberate strategy.`,
+
+  s4: `This section explores the relationship between each ASIN's contribution to total catalog revenue and the share of ad budget allocated to it. Look for balance — but not always 1:1. Some ASINs may warrant an outsized spend share, for example new launches requiring ad support to build velocity. Others may be established catalog pillars that generate strong organic sales while subsidizing the rest of the catalog. Identify outliers in both directions: ASINs carrying a large portion of total spend without commensurate return or revenue contribution, and ASINs contributing meaningfully to revenue with strong returns but receiving underweight budget. For high-spend, low-return ASINs, question whether this is a deliberate new launch investment or a misallocation. For high-revenue, low-spend ASINs, question whether this reflects strong profitability and organic strength or an opportunity being left on the table.`,
+};
+
+const callClaude = async (sectionKey, payload) => {
   const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("VITE_ANTHROPIC_API_KEY is not set.");
+  const sectionPrompt = SECTION_PROMPTS[sectionKey] || "";
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -674,9 +688,9 @@ const callClaude = async (payload) => {
     },
     body: JSON.stringify({
       model:      "claude-sonnet-4-20250514",
-      max_tokens: 400,
+      max_tokens: 500,
       system:     SYSTEM_PROMPT,
-      messages:   [{ role: "user", content: "Analyze this Amazon Sponsored Products data and provide strategic insights:\n\n" + JSON.stringify(payload, null, 2) }],
+      messages:   [{ role: "user", content: sectionPrompt + "\n\nHere is the data:\n\n" + JSON.stringify(payload, null, 2) }],
     }),
   });
   if (!res.ok) throw new Error("Claude API error: " + res.status);
@@ -694,7 +708,7 @@ const InsightCard = ({ sectionKey, payload }) => {
     if (cooldown || state === "loading") return;
     setState("loading");
     try {
-      const text = await callClaude(payload);
+      const text = await callClaude(sectionKey, payload);
       setInsight(text);
       setState("done");
     } catch (e) {
