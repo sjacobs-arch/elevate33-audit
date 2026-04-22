@@ -776,15 +776,11 @@ const InsightCard = ({ sectionKey, payload }) => {
 
 
 // ─── apollo lead submission ───────────────────────────────────────────────────
-const APOLLO_API_KEY = import.meta.env.VITE_APOLLO_API_KEY || "";
-
 const submitToApollo = async ({ firstName, lastName, email, company, title }) => {
-  if (!APOLLO_API_KEY) return; // skip silently if key not configured
-  const res = await fetch("https://api.apollo.io/v1/contacts", {
+  const res = await fetch("/.netlify/functions/apollo", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-cache" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      api_key:           APOLLO_API_KEY,
       first_name:        firstName,
       last_name:         lastName,
       email:             email,
