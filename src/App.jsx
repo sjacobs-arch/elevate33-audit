@@ -1154,7 +1154,28 @@ export default function App() {
                     </span>
                   )}
                 </div>
-                <p style={{ margin: "0 0 20px", color: "#64748b", fontSize: 13 }}>Upload all 5 reports below — supports Excel (.xlsx) and CSV files.</p>
+                <p style={{ margin: "0 0 16px", color: "#64748b", fontSize: 13 }}>Upload all 5 reports below — supports Excel (.xlsx) and CSV files.</p>
+                <div style={{ background: "linear-gradient(135deg,rgba(79,70,229,0.04),rgba(249,115,22,0.03))", border: "1px solid rgba(79,70,229,0.12)", borderRadius: 12, padding: "14px 18px", marginBottom: 20, fontSize: 12, color: "#475569", lineHeight: 1.7 }}>
+                  <div style={{ fontWeight: 700, color: P.purple2, marginBottom: 8, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.07em" }}>📋 Where to find your reports</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px 24px" }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: "#1e293b", marginBottom: 4 }}>Sponsored Ads (Ad Console)</div>
+                      <div style={{ color: "#64748b" }}>· Search Term Report (T30)</div>
+                      <div style={{ color: "#64748b" }}>· Placement Report (T30)</div>
+                      <div style={{ color: "#64748b" }}>· Advertised Product Report (T30)</div>
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, color: "#1e293b", marginBottom: 4 }}>Seller / Vendor Central</div>
+                      <div style={{ color: "#64748b" }}>· Business Reports → Detail Page</div>
+                      <div style={{ color: "#64748b" }}>&nbsp;&nbsp;Sales &amp; Traffic By Child Item (T30)</div>
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, color: "#1e293b", marginBottom: 4 }}>Brand Terms</div>
+                      <div style={{ color: "#64748b" }}>· Single-column spreadsheet with</div>
+                      <div style={{ color: "#64748b" }}>&nbsp;&nbsp;all brand child ASINs and terms</div>
+                    </div>
+                  </div>
+                </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
                   {FILE_CFG.map((cfg) => (
                     <UploadCard key={cfg.id} cfg={cfg}
