@@ -859,11 +859,56 @@ const ProgressBar = ({ current, onNav, results }) => {
 };
 
 // ─── nav footer ───────────────────────────────────────────────────────────────
+const ConsultationBanner = () => {
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
+  return (
+    <div style={{
+      marginTop: 32, borderRadius: 16, padding: "20px 24px",
+      background: `linear-gradient(135deg,${P.purple1},#1e1b4b)`,
+      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, flexWrap: "wrap",
+      boxShadow: `0 8px 32px ${P.purple2}30`,
+    }}>
+      <div>
+        <div style={{ fontSize: 15, fontWeight: 800, color: "white", marginBottom: 4, letterSpacing: "-0.02em" }}>
+          Want an expert to walk through this with you?
+        </div>
+        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", lineHeight: 1.5 }}>
+          Book a free 30-minute strategy call with an ELEVATE33 Amazon Ads specialist.
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+        <a
+          href="https://elevate33.com/contact"
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            padding: "10px 22px", borderRadius: 10, border: "none", cursor: "pointer",
+            background: `linear-gradient(135deg,${P.orange2},${P.orange3})`,
+            color: "white", fontSize: 13, fontWeight: 800, textDecoration: "none",
+            boxShadow: `0 4px 14px ${P.orange3}50`, display: "inline-block",
+          }}
+        >
+          Book a Free Call →
+        </a>
+        <button
+          onClick={() => setDismissed(true)}
+          style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "4px 8px" }}
+          title="Dismiss"
+        >✕</button>
+      </div>
+    </div>
+  );
+};
+
 const NavFooter = ({ current, onNav, canAdvance = true, advanceLabel = "Next →" }) => {
   const ci   = PAGES.findIndex(p => p.id === current);
   const prev = ci > 0 ? PAGES[ci - 1].id : null;
   const next = ci < PAGES.length - 1 ? PAGES[ci + 1].id : null;
+  const isResultsPage = ["s1","s2","s3","s4","report"].includes(current);
   return (
+    <div>
+      {isResultsPage && <ConsultationBanner />}
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 32, paddingTop: 24, borderTop: "1px solid #f1f5f9" }}>
       <div>
         {prev && (
@@ -886,6 +931,7 @@ const NavFooter = ({ current, onNav, canAdvance = true, advanceLabel = "Next →
           }}>{advanceLabel}</button>
         )}
       </div>
+    </div>
     </div>
   );
 };
