@@ -148,7 +148,7 @@ const calc = (a) => ({
 });
 
 const BUCKETS = [
-  { label: "$0",          test: (s) => s === 0 },
+  { label: "$0",          test: (s) => s <= 0 },
   { label: "$1–$100",     test: (s) => s > 0   && s <= 100 },
   { label: "$100–$500",   test: (s) => s > 100  && s <= 500 },
   { label: "$500–$1,500", test: (s) => s > 500  && s <= 1500 },
@@ -241,7 +241,7 @@ const processAll = (parsed) => {
     return { rows, totals };
   })();
 
-  const s2 = {
+const s2 = {
     table:      sortedMT.map(([label, v]) => ({ label, ...calc(v) })),
     spendPie:   sortedMT.map(([name, v])  => ({ name, value: v.spend   })),
     clicksPie:  sortedMT.map(([name, v])  => ({ name, value: v.clicks  })),
@@ -636,21 +636,22 @@ const buildS4Payload = (s4) => {
   // ANONYMIZE: replace ASINs with rank labels, send only ratios + relative values
   const total = s4.grandTotalRevenue;
   const ranked = s4.data.slice(0, 15).map((d, i) => ({
-    rank:          i + 1,
-    revSharePct:   (d.pctRevenue * 100).toFixed(1),
-    spendSharePct: (d.pctSpend * 100).toFixed(1),
-    adRoas:        d.adRoas.toFixed(2),
+    rank:                  i + 1,
+    "revShare_%":          (d.pctRevenue * 100).toFixed(1),
+    "spendShare_%":        (d.pctSpend * 100).toFixed(1),
+    "adRoas_x":            d.adRoas.toFixed(2),
     organicToAdSalesRatio: d.adSales > 0 ? (d.organicSales / d.adSales).toFixed(2) : "n/a",
-    totalRevenue:  d.totalRevenue.toFixed(2),
-    adSpend:       d.adSpend.toFixed(2),
+    "totalRevenue_USD":    d.totalRevenue.toFixed(2),
+    "adSpend_USD":         d.adSpend.toFixed(2),
   }));
   return {
-    section:          "ASIN Budget & Revenue (anonymized — no ASIN codes transmitted)",
-    totalASINs:       s4.data.length,
-    grandTotalSpend:  s4.grandTotalSpend.toFixed(2),
-    grandTotalRevenue: s4.grandTotalRevenue.toFixed(2),
-    blendedROAS:      s4.grandTotalSpend > 0 ? (s4.data.reduce((s,d) => s + d.adSales, 0) / s4.grandTotalSpend).toFixed(2) : "n/a",
-    top15ByRevenue:   ranked,
+    section:               "ASIN Budget & Revenue (anonymized — no ASIN codes transmitted)",
+    note:                  "All USD values are exact figures in dollars. Percentages are shares of portfolio total. Do not scale or extrapolate these numbers.",
+    totalASINs:            s4.data.length,
+    "grandTotalSpend_USD": s4.grandTotalSpend.toFixed(2),
+    "grandTotalRevenue_USD": s4.grandTotalRevenue.toFixed(2),
+    blendedROAS:           s4.grandTotalSpend > 0 ? (s4.data.reduce((s,d) => s + d.adSales, 0) / s4.grandTotalSpend).toFixed(2) : "n/a",
+    top15ByRevenue:        ranked,
   };
 };
 
@@ -658,20 +659,23 @@ const SYSTEM_PROMPT = `You are an expert Amazon Advertising strategist working f
 
 Your job: deliver sharp, specific, actionable insights in 4-6 sentences.
 - Lead with the most important finding
-- Include specific numbers from the data to support your points
+- Include specific numbers from the data to support your points — only cite numbers that appear explicitly in the data, never extrapolate or invent figures
+- All dollar values in the data are in USD — use them exactly as provided, do not scale or multiply them
 - End with a clear directional recommendation
 - Tone: confident, direct, expert — like a senior strategist in a client meeting
 - Do NOT use bullet points, headers, or markdown formatting
 - Write in flowing prose only`;
 
+const DATA_ACCURACY_RULE = `CRITICAL: Every number you reference must come directly from the data provided. Do not extrapolate, scale, estimate, or invent figures. Use exact values as shown — if a spend figure is $1,500 in the data, say $1,500, not $1.5M or $500K. If a metric is not in the data, do not reference it.`;
+
 const SECTION_PROMPTS = {
-  s1: `Analyze this brand vs. non-brand spend split through a critical lens. The benchmark is no more than 20% of total budget going to branded terms — flag immediately if this account exceeds that threshold. Assess whether the ROAS gap between brand and non-brand is creating a misleading picture of account health. Evaluate match type discipline within the brand segment — brand defense should be concentrated in Exact or Phrase match. If phrase match is heavy, advise reviewing search terms to confirm these are deliberate brand phrase targets, not category terms bleeding in. Any spend in Auto or Broad for brand terms is a negative keyword gap — call it out directly.`,
+  s1: `${DATA_ACCURACY_RULE}\n\nAnalyze this brand vs. non-brand spend split through a critical lens. The benchmark is no more than 20% of total budget going to branded terms — flag immediately if this account exceeds that threshold. Assess whether the ROAS gap between brand and non-brand is creating a misleading picture of account health. Evaluate match type discipline within the brand segment — brand defense should be concentrated in Exact or Phrase match. If phrase match is heavy, advise reviewing search terms to confirm these are deliberate brand phrase targets, not category terms bleeding in. Any spend in Auto or Broad for brand terms is a negative keyword gap — call it out directly.`,
 
-  s2: `Match type tells us how much control a brand has over their account. The ideal state is heavily weighted toward Exact match (>80% of spend), which allows a brand to control spend against specific keywords and chase sales and organic rank where there is opportunity. Assess the spend breakdown — Exact should typically be #1, Phrase can be incorporated, and Auto and Broad should be limited (<20% of spend combined). Evaluate ROAS and CVR by match type. If Auto, Broad, or Phrase shows higher ROAS than Exact, this often signals the brand is not graduating effective targets into Exact match campaigns. Product or category targets may also be present but should not exceed 20% of spend. We also examine how many search terms are driving sales. A large portion of budget in Auto, Broad, or Phrase will result in a high percentage of spend going to $0-sales search terms. While finding traffic on longtail terms matters, brands should not over-index on $0-sales terms — flag if this exceeds 40% of spend, with the ideal being under 30%. Call out the waste explicitly: what percentage of spend or search terms targeted are not producing sales.`,
+  s2: `${DATA_ACCURACY_RULE}\n\nMatch type tells us how much control a brand has over their account. The ideal state is heavily weighted toward Exact match (>80% of spend), which allows a brand to control spend against specific keywords and chase sales and organic rank where there is opportunity. Assess the spend breakdown — Exact should typically be #1, Phrase can be incorporated, and Auto and Broad should be limited (<20% of spend combined). Evaluate ROAS and CVR by match type. If Auto, Broad, or Phrase shows higher ROAS than Exact, this often signals the brand is not graduating effective targets into Exact match campaigns. Product or category targets may also be present but should not exceed 20% of spend. We also examine how many search terms are driving sales. A large portion of budget in Auto, Broad, or Phrase will result in a high percentage of spend going to $0-sales search terms. While finding traffic on longtail terms matters, brands should not over-index on $0-sales terms — flag if this exceeds 40% of spend, with the ideal being under 30%. Call out the waste explicitly: what percentage of spend or search terms targeted are not producing sales.`,
 
-  s3: `Placements matter because without bid modifiers, brands miss the opportunity to steer spend toward higher-converting or higher-return placements. Amazon tends to prioritize Rest of Search and Product Pages over Top of Search because auctions are cheaper to win there — but these placements may not deliver the visibility or rank-building a brand needs. Analyze CPC, ROAS, and CVR across placements. Generally, Top of Search should be prioritized to build organic rank — it typically carries the highest ROAS and CVR despite the highest CPC. An upstart brand trying to drive traffic and review volume may reasonably lean into Rest of Search or Product Pages to maximize velocity early. A mature brand should have focused budgets and a clear intent to build organic rank, which requires a concentration on Top of Search — Amazon's algorithm favors ASINs with high CVR on target terms, and Top of Search amplifies that signal. Flag any over-saturation in a single placement and evaluate whether the spend distribution reflects a deliberate strategy.`,
+  s3: `${DATA_ACCURACY_RULE}\n\nPlacements matter because without bid modifiers, brands miss the opportunity to steer spend toward higher-converting or higher-return placements. Amazon tends to prioritize Rest of Search and Product Pages over Top of Search because auctions are cheaper to win there — but these placements may not deliver the visibility or rank-building a brand needs. Analyze CPC, ROAS, and CVR across placements. Generally, Top of Search should be prioritized to build organic rank — it typically carries the highest ROAS and CVR despite the highest CPC. An upstart brand trying to drive traffic and review volume may reasonably lean into Rest of Search or Product Pages to maximize velocity early. A mature brand should have focused budgets and a clear intent to build organic rank, which requires a concentration on Top of Search — Amazon's algorithm favors ASINs with high CVR on target terms, and Top of Search amplifies that signal. Flag any over-saturation in a single placement and evaluate whether the spend distribution reflects a deliberate strategy.`,
 
-  s4: `This section explores the relationship between each ASIN's contribution to total catalog revenue and the share of ad budget allocated to it. Look for balance — but not always 1:1. Some ASINs may warrant an outsized spend share, for example new launches requiring ad support to build velocity. Others may be established catalog pillars that generate strong organic sales while subsidizing the rest of the catalog. Identify outliers in both directions: ASINs carrying a large portion of total spend without commensurate return or revenue contribution, and ASINs contributing meaningfully to revenue with strong returns but receiving underweight budget. For high-spend, low-return ASINs, question whether this is a deliberate new launch investment or a misallocation. For high-revenue, low-spend ASINs, question whether this reflects strong profitability and organic strength or an opportunity being left on the table.`,
+  s4: `${DATA_ACCURACY_RULE}\n\nThis section explores the relationship between each ASIN's contribution to total catalog revenue and the share of ad budget allocated to it. Look for balance — but not always 1:1. Some ASINs may warrant an outsized spend share, for example new launches requiring ad support to build velocity. Others may be established catalog pillars that generate strong organic sales while subsidizing the rest of the catalog. Identify outliers in both directions: ASINs carrying a large portion of total spend without commensurate return or revenue contribution, and ASINs contributing meaningfully to revenue with strong returns but receiving underweight budget. For high-spend, low-return ASINs, question whether this is a deliberate new launch investment or a misallocation. For high-revenue, low-spend ASINs, question whether this reflects strong profitability and organic strength or an opportunity being left on the table.`,
 };
 
 const callClaude = async (sectionKey, payload) => {
