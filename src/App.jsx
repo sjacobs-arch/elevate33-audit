@@ -986,15 +986,15 @@ const ConsultationBanner = () => {
     }}>
       <div>
         <div style={{ fontSize: 15, fontWeight: 800, color: "white", marginBottom: 4, letterSpacing: "-0.02em" }}>
-          Want an expert to walk through this with you?
+          Want an expert to walk you through it?
         </div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", lineHeight: 1.5 }}>
-          Book a free 30-minute strategy call with an ELEVATE33 Amazon Ads specialist.
+          Book a free 30-minute strategy call with the E33 team.
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
         <a
-          href="https://elevate33.com/contact"
+          href="https://calendar.app.google/pWuSiLVaphvv8fRX8"
           target="_blank"
           rel="noreferrer"
           style={{
