@@ -1242,7 +1242,6 @@ const ReportPage = ({ results, onNav }) => {
 
 // ─── app ─────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [unlocked,    setUnlocked]    = useState(false);
   const [page,        setPage]        = useState("intro");
   const [parsedData,  setParsedData]  = useState({});
   const [loadingId,   setLoadingId]   = useState(null);
@@ -1272,7 +1271,6 @@ export default function App() {
   return (
     <>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-      {!unlocked && <LeadGate onUnlock={() => setUnlocked(true)} />}
       <div style={{ fontFamily: '"DM Sans", system-ui, sans-serif', minHeight: "100vh", background: "linear-gradient(150deg,#f0f3ff 0%,#f8f9fb 50%,#fff8f3 100%)", color: "#0f172a" }}>
 
         {/* HEADER */}
